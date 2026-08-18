@@ -65,6 +65,11 @@ public class ClanRankPrefixer {
 			return;
 		}
 
+		// fixing double icon adding due to timing issue with chat channels plugin join and leave messages
+		if (strippedMessage.matches(".*\\bhas (joined|left)\\.?$")) {
+			return;
+		}
+
 		ClanChannelMember matched = findMatchingMember(clanChannel, strippedMessage);
 		if (matched == null) {
 			log.debug("No clan member match for broadcast: '{}'", strippedMessage);
