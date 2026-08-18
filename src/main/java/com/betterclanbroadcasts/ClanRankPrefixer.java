@@ -11,7 +11,6 @@ import net.runelite.api.clan.ClanTitle;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.util.Text;
 import lombok.extern.slf4j.Slf4j;
@@ -27,15 +26,13 @@ public class ClanRankPrefixer {
 	private static final String CA_ID_REGEX = "CA_ID:\\d+\\|";
 
 	private final Client client;
-	private final ChatMessageManager chatMessageManager;
 	private final ClientThread clientThread;
 	private final ChatIconManager chatIconManager;
 	private final Queue<PendingEdit> pendingEdits = new ArrayDeque<>();
 	private String lastInjectedMessage = null;
 
-	public ClanRankPrefixer(Client client, ChatMessageManager chatMessageManager, ClientThread clientThread, ChatIconManager chatIconManager) {
+	public ClanRankPrefixer(Client client, ClientThread clientThread, ChatIconManager chatIconManager) {
 		this.client = client;
-		this.chatMessageManager = chatMessageManager;
 		this.clientThread = clientThread;
 		this.chatIconManager = chatIconManager;
 	}
@@ -170,7 +167,6 @@ public class ClanRankPrefixer {
 	private void applyEdit(PendingEdit edit) {
 		clientThread.invokeLater(() -> {
 			edit.messageNode.setRuneLiteFormatMessage(edit.message);
-			chatMessageManager.update(edit.messageNode);
 			client.refreshChat();
 		});
 	}

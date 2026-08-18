@@ -29,9 +29,6 @@ public class BetterClanBroadcastsPlugin extends Plugin
 	private BetterClanBroadcastsConfig config;
 
 	@Inject
-	private ChatMessageManager chatMessageManager;
-
-	@Inject
 	private ClientThread clientThread;
 
 	@Inject
@@ -42,7 +39,7 @@ public class BetterClanBroadcastsPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
-		clanRankPrefixer = new ClanRankPrefixer(client, chatMessageManager, clientThread, chatIconManager);
+		clanRankPrefixer = new ClanRankPrefixer(client, clientThread, chatIconManager);
 	}
 
 	@Override
