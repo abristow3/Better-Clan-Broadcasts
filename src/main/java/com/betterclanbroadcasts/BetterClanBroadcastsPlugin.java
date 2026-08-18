@@ -7,7 +7,6 @@ import net.runelite.api.Client;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ChatIconManager;
@@ -18,7 +17,7 @@ import net.runelite.client.plugins.PluginDescriptor;
 @PluginDescriptor(
 		name = "Better Clan Broadcasts",
 		description = "Prepends clan rank icons to clan broadcast messages",
-		tags = {"clan", "broadcast", "rank", "icon"}
+		tags = {"clan", "broadcast", "rank", "icon", "chat", "clanchat"}
 )
 public class BetterClanBroadcastsPlugin extends Plugin
 {
