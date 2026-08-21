@@ -14,8 +14,8 @@ import net.runelite.client.plugins.PluginDescriptor;
 
 @Slf4j
 @PluginDescriptor(
-		name = "Better Clan Broadcasts",
-		description = "Prepends clan rank icons to clan broadcast messages",
+		name = "Clan QOL",
+		description = "Clan chat interface enhancements",
 		tags = {"clan", "broadcast", "rank", "icon", "chat", "clanchat", "filtering", "filter"}
 )
 public class BetterClanBroadcastsPlugin extends Plugin
