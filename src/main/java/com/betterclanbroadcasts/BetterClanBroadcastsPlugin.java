@@ -1,25 +1,49 @@
 package com.betterclanbroadcasts;
 
+import com.google.common.base.Strings;
 import com.google.inject.Provides;
+import java.awt.Color;
+import java.util.Set;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.MenuAction;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.MenuEntryAdded;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.WidgetUtil;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ChatIconManager;
+import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.ColorUtil;
+import net.runelite.client.util.Text;
 
 @Slf4j
 @PluginDescriptor(
-		name = "Clan QOL",
-		description = "Clan chat interface enhancements",
-		tags = {"clan", "broadcast", "rank", "icon", "chat", "clanchat", "filtering", "filter"}
+		name = "Better Clan Broadcasts",
+		description = "Prepends clan rank icons to clan broadcast messages",
+		tags = {"clan", "broadcast", "rank", "icon", "chat", "clanchat"}
 )
 public class BetterClanBroadcastsPlugin extends Plugin
 {
+	private static final Set<String> NOTE_ANCHOR_OPTIONS = Set.of("Add ignore", "Remove friend");
+	private static final String ADD_NOTE = "Add Note";
+	private static final String EDIT_NOTE = "Edit Note";
+	private static final String NOTE_KEY_PREFIX = "note_";
+	private static final int NOTE_CHARACTER_LIMIT = 128;
+	private static final String NOTE_PROMPT_FORMAT = "%s's Notes<br>" +
+			ColorUtil.prependColorTag("(Limit %s Characters)", new Color(0, 0, 170));
+
+	private static final int CLAN_GROUP_ID = WidgetUtil.componentToInterface(InterfaceID.ClansSidepanel.PLAYERLIST);
+
 	@Inject
 	private Client client;
 	@Inject
@@ -28,22 +52,35 @@ public class BetterClanBroadcastsPlugin extends Plugin
 	private ClientThread clientThread;
 	@Inject
 	private ChatIconManager chatIconManager;
+	@Inject
+	private ConfigManager configManager;
+	@Inject
+	private OverlayManager overlayManager;
+	@Inject
+	private ChatboxPanelManager chatboxPanelManager;
+	@Inject
+	private ClanNoteOverlay clanNoteOverlay;
 
 	private ClanRankPrefixer clanRankPrefixer;
 	private ClanPlayerListSorter clanPlayerListSorter;
 
 	private static final int SORT_BUTTON_Y = 33;
-	private static final int WORLD_SORT_BUTTON_X = 140;
-	private static final int NAME_SORT_BUTTON_X = 45;
-	private static final int RANK_SORT_BUTTON_X = 13;
+	private static final int WORLD_SORT_BUTTON_X = 145;
+	private static final int NAME_SORT_BUTTON_X = 35;
+	private static final int RANK_SORT_BUTTON_X = 10;
 
 	private ClanSortToggleButton worldSortButton;
 	private ClanSortToggleButton nameSortButton;
 	private ClanSortToggleButton rankSortButton;
 
+	@Getter
+	private HoveredClanMember hoveredClanMember = null;
+
 	@Override
 	protected void startUp() throws Exception
 	{
+		overlayManager.add(clanNoteOverlay);
+
 		clanRankPrefixer = new ClanRankPrefixer(client, clientThread, chatIconManager);
 		clanPlayerListSorter = new ClanPlayerListSorter(client);
 
@@ -75,6 +112,8 @@ public class BetterClanBroadcastsPlugin extends Plugin
 	@Override
 	protected void shutDown() throws Exception
 	{
+		overlayManager.remove(clanNoteOverlay);
+
 		clanRankPrefixer = null;
 
 		clanPlayerListSorter.reset();
@@ -102,6 +141,80 @@ public class BetterClanBroadcastsPlugin extends Plugin
 		worldSortButton.onGameTick();
 		nameSortButton.onGameTick();
 		rankSortButton.onGameTick();
+	}
+
+	@Subscribe
+	public void onMenuEntryAdded(MenuEntryAdded event)
+	{
+		int groupId = WidgetUtil.componentToInterface(event.getActionParam1());
+
+		if (groupId == CLAN_GROUP_ID && NOTE_ANCHOR_OPTIONS.contains(event.getOption()))
+		{
+			// clan member names carry color tags same as friends do
+			setHoveredClanMember(Text.toJagexName(Text.removeTags(event.getTarget())));
+
+			client.createMenuEntry(-1)
+					.setOption(hoveredClanMember == null || hoveredClanMember.getNote() == null ? ADD_NOTE : EDIT_NOTE)
+					.setType(MenuAction.RUNELITE)
+					.setTarget(event.getTarget())
+					.onClick(e ->
+					{
+						String sanitizedTarget = Text.toJagexName(Text.removeTags(e.getTarget()));
+						String note = getClanMemberNote(sanitizedTarget);
+
+						chatboxPanelManager.openTextInput(String.format(NOTE_PROMPT_FORMAT, sanitizedTarget, NOTE_CHARACTER_LIMIT))
+								.value(Strings.nullToEmpty(note))
+								.onDone((content) ->
+								{
+									if (content == null)
+									{
+										return;
+									}
+
+									content = Text.removeTags(content).trim();
+									log.debug("Set clan note for '{}': '{}'", sanitizedTarget, content);
+									setClanMemberNote(sanitizedTarget, content);
+								}).build();
+					});
+		}
+		else if (hoveredClanMember != null)
+		{
+			hoveredClanMember = null;
+		}
+	}
+
+	private void setClanMemberNote(String displayName, String note)
+	{
+		if (Strings.isNullOrEmpty(note))
+		{
+			configManager.unsetConfiguration(BetterClanBroadcastsConfig.CONFIG_GROUP, NOTE_KEY_PREFIX + displayName);
+		}
+		else
+		{
+			configManager.setConfiguration(BetterClanBroadcastsConfig.CONFIG_GROUP, NOTE_KEY_PREFIX + displayName, note);
+		}
+	}
+
+	@Nullable
+	private String getClanMemberNote(String displayName)
+	{
+		return configManager.getConfiguration(BetterClanBroadcastsConfig.CONFIG_GROUP, NOTE_KEY_PREFIX + displayName);
+	}
+
+	private void setHoveredClanMember(String displayName)
+	{
+		hoveredClanMember = null;
+
+		if (!config.showNoteTooltip() || Strings.isNullOrEmpty(displayName))
+		{
+			return;
+		}
+
+		String note = getClanMemberNote(displayName);
+		if (note != null)
+		{
+			hoveredClanMember = new HoveredClanMember(displayName, note);
+		}
 	}
 
 	@Provides
