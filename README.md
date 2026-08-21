@@ -4,6 +4,7 @@ A plugin that enhances the clan chat interface.
 ## Clan member notes
 Extends the friend notes plugin and introduces notes for clan members.
 
+https://github.com/user-attachments/assets/3f79d1ae-2cc2-4a3b-8df3-bb3f6d5a87a5
 
 
 ## Clan Broadcast Fixes:
