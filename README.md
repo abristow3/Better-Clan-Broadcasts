@@ -1,6 +1,11 @@
 # Clan QOL
 A plugin that enhances the clan chat interface.
 
+## Clan member notes
+Extends the friend notes plugin and introduces notes for clan members.
+
+
+
 ## Clan Broadcast Fixes:
 It fixes clan ranks for:
 - Quest Complete broadcasts
