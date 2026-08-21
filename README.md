@@ -1,5 +1,5 @@
-# Better Clan Broadcasts
-A plugin that prepends clan member rank icons to clan broadcasts and introduces clan chat interface filtering.
+# Clan QOL
+A plugin that enhances the clan chat interface.
 
 ## Clan Broadcast Fixes:
 It fixes clan ranks for:
