@@ -6,6 +6,7 @@ import net.runelite.api.clan.ClanChannel;
 import net.runelite.api.clan.ClanChannelMember;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.util.Text;
 
 import java.util.ArrayList;
@@ -20,8 +21,10 @@ import java.util.Map;
 public class ClanPlayerListSorter
 {
 	private static final int CLAN_ROW_HEIGHT = 15;
+	private static final String SORT_MODE_CONFIG_KEY = "sortMode";
 
 	private final Client client;
+	private final ConfigManager configManager;
 
 	private final Map<Widget, Integer> nativeWidgetYs = new IdentityHashMap<>();
 
@@ -36,46 +39,55 @@ public class ClanPlayerListSorter
 		RANK_THEN_SPRITE_DESCENDING
 	}
 
-	private SortMode sortMode = SortMode.NONE;
+	private SortMode sortMode;
 
-	public ClanPlayerListSorter(Client client)
+	public ClanPlayerListSorter(Client client, ConfigManager configManager)
 	{
 		this.client = client;
+		this.configManager = configManager;
+		this.sortMode = loadSortMode();
 	}
 
 	public void setAscending()
 	{
 		sortMode = SortMode.WORLD_ASCENDING;
+		persistSortMode();
 	}
 
 	public void setDescending()
 	{
 		sortMode = SortMode.WORLD_DESCENDING;
+		persistSortMode();
 	}
 
 	public void setNameAscending()
 	{
 		sortMode = SortMode.NAME_ASCENDING;
+		persistSortMode();
 	}
 
 	public void setNameDescending()
 	{
 		sortMode = SortMode.NAME_DESCENDING;
+		persistSortMode();
 	}
 
 	public void setRankThenSpriteAscending()
 	{
 		sortMode = SortMode.RANK_THEN_SPRITE_ASCENDING;
+		persistSortMode();
 	}
 
 	public void setRankThenSpriteDescending()
 	{
 		sortMode = SortMode.RANK_THEN_SPRITE_DESCENDING;
+		persistSortMode();
 	}
 
 	public void clear()
 	{
 		sortMode = SortMode.NONE;
+		persistSortMode();
 		restore();
 	}
 
@@ -103,7 +115,32 @@ public class ClanPlayerListSorter
 	public void reset()
 	{
 		restore();
-		sortMode = SortMode.NONE;
+	}
+
+	private SortMode loadSortMode()
+	{
+		String saved = configManager.getConfiguration(BetterClanBroadcastsConfig.CONFIG_GROUP, SORT_MODE_CONFIG_KEY);
+		if (saved == null)
+		{
+			return SortMode.NAME_ASCENDING;
+		}
+
+		try
+		{
+			return SortMode.valueOf(saved);
+		}
+		catch (IllegalArgumentException e)
+		{
+			// saved value doesnt match a current enum constant, e.g. after a
+			// plugin update removed/renamed a mode. fall back to the default
+			// sort rather than crash
+			return SortMode.NAME_ASCENDING;
+		}
+	}
+
+	private void persistSortMode()
+	{
+		configManager.setConfiguration(BetterClanBroadcastsConfig.CONFIG_GROUP, SORT_MODE_CONFIG_KEY, sortMode.name());
 	}
 
 	private void sort()

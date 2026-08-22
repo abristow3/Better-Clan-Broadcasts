@@ -28,9 +28,9 @@ import net.runelite.client.util.Text;
 
 @Slf4j
 @PluginDescriptor(
-		name = "Better Clan Broadcasts",
+		name = "Clan QOL",
 		description = "Prepends clan rank icons to clan broadcast messages",
-		tags = {"clan", "broadcast", "rank", "icon", "chat", "clanchat"}
+		tags = {"clan", "broadcast", "rank", "icon", "chat", "clanchat", "qol", "filtering", "filter", "notes"}
 )
 public class BetterClanBroadcastsPlugin extends Plugin
 {
@@ -65,9 +65,9 @@ public class BetterClanBroadcastsPlugin extends Plugin
 	private ClanPlayerListSorter clanPlayerListSorter;
 
 	private static final int SORT_BUTTON_Y = 33;
-	private static final int WORLD_SORT_BUTTON_X = 145;
-	private static final int NAME_SORT_BUTTON_X = 35;
-	private static final int RANK_SORT_BUTTON_X = 10;
+	private static final int WORLD_SORT_BUTTON_X = 140;
+	private static final int NAME_SORT_BUTTON_X = 40;
+	private static final int RANK_SORT_BUTTON_X = 13;
 
 	private ClanSortToggleButton worldSortButton;
 	private ClanSortToggleButton nameSortButton;
@@ -82,7 +82,7 @@ public class BetterClanBroadcastsPlugin extends Plugin
 		overlayManager.add(clanNoteOverlay);
 
 		clanRankPrefixer = new ClanRankPrefixer(client, clientThread, chatIconManager);
-		clanPlayerListSorter = new ClanPlayerListSorter(client);
+		clanPlayerListSorter = new ClanPlayerListSorter(client, configManager);
 
 		worldSortButton = new ClanSortToggleButton(client, clientThread,
 				WORLD_SORT_BUTTON_X, SORT_BUTTON_Y,
@@ -127,6 +127,16 @@ public class BetterClanBroadcastsPlugin extends Plugin
 
 		rankSortButton.reset();
 		rankSortButton = null;
+	}
+
+	@Subscribe
+	public void onChatMessage(ChatMessage event)
+	{
+		if (!config.enabled())
+		{
+			return;
+		}
+		clanRankPrefixer.onChatMessage(event);
 	}
 
 	@Subscribe

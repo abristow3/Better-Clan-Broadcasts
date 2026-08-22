@@ -11,7 +11,7 @@ public interface BetterClanBroadcastsConfig extends Config
 
 	@ConfigItem(
 			keyName = "enabled",
-			name = "Enabled",
+			name = "Broadcast Ranks",
 			description = "Prepend clan rank icons to clan broadcast messages"
 	)
 	default boolean enabled()
