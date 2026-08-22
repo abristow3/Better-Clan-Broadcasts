@@ -13,6 +13,9 @@ import java.util.function.BooleanSupplier;
 @Slf4j
 public class ClanSortToggleButton
 {
+	// carried over from Sight's sprite ids. havent independently confirmed
+	// which one actually looks like an up vs down triangle, swap these two
+	// if the icon looks backwards in game
 	private static final int SPRITE_ASCENDING = 1051;
 	private static final int SPRITE_DESCENDING = 1050;
 
@@ -30,6 +33,7 @@ public class ClanSortToggleButton
 	private final Runnable onDescendingClick;
 
 	private Widget button;
+	private Widget parentAtCreation;
 
 	// isAscending should return true when this column's ascending mode is the
 	// sorter's current mode. onAscendingClick/onDescendingClick should call
@@ -55,11 +59,21 @@ public class ClanSortToggleButton
 		clientThread.invokeLater(this::createButton);
 	}
 
-	// call from onGameTick, recreates the button if the panel got closed and
-	// reopened, and keeps the sprite/tooltip synced to the real sort mode
+	// call from onGameTick amd recreates the button if the panel got closed and reopened
 	public void onGameTick()
 	{
-		if (button == null)
+		Widget currentParent = client.getWidget(InterfaceID.ClansSidepanel.UNIVERSE);
+
+		if (currentParent == null)
+		{
+			// panel not open, drop stale refs so we rebuild cleanly once it
+			// reopens
+			button = null;
+			parentAtCreation = null;
+			return;
+		}
+
+		if (button == null || currentParent != parentAtCreation)
 		{
 			createButton();
 			return;
@@ -72,6 +86,7 @@ public class ClanSortToggleButton
 	public void reset()
 	{
 		hideButton();
+		parentAtCreation = null;
 	}
 
 	private void createButton()
@@ -79,6 +94,8 @@ public class ClanSortToggleButton
 		Widget parent = client.getWidget(InterfaceID.ClansSidepanel.UNIVERSE);
 		if (parent == null)
 		{
+			button = null;
+			parentAtCreation = null;
 			return;
 		}
 
@@ -92,6 +109,8 @@ public class ClanSortToggleButton
 		button.setOnOpListener((JavaScriptCallback) ev -> clientThread.invokeLater(this::handleClick));
 		button.setHasListener(true);
 		button.revalidate();
+
+		parentAtCreation = parent;
 
 		syncButton();
 	}
