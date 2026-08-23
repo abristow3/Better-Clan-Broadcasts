@@ -84,6 +84,12 @@ public class ClanRankPrefixer {
 
 		int iconIndex = chatIconManager.getIconNumber(title);
 
+		// guard against double-prefixing
+		if (iconIndex >= 0 && rawMessage.trim().matches("^(?:" + CA_ID_REGEX + ")?<img=" + iconIndex + ">\\s.*")) {
+			log.debug("Message already prefixed with our icon ({}), skipping: '{}'", iconIndex, rawMessage);
+			return;
+		}
+
 		if (isCombatAchievement) {
 			// client renders CA lines its own way, editing text does nothing here.
 			// current workaround delete node, publish fresh one
