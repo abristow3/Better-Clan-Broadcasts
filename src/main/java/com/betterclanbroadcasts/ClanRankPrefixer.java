@@ -84,6 +84,18 @@ public class ClanRankPrefixer {
 
 		int iconIndex = chatIconManager.getIconNumber(title);
 
+		// guard against double-prefixing (e.g. the client re-firing an event
+		// for our own republished CA line, which the exact-string
+		// lastInjectedMessage check above doesnt always catch). checks for
+		// OUR specific icon number right after an optional CA_ID tag, not
+		// just any leading <img=> tag - a message can legitimately start
+		// with an unrelated icon (the player's ironman icon) even on a
+		// genuine first pass, and that must not be mistaken for our prefix
+		if (iconIndex >= 0 && rawMessage.trim().matches("^(?:" + CA_ID_REGEX + ")?<img=" + iconIndex + ">\\s.*")) {
+			log.debug("Message already prefixed with our icon ({}), skipping: '{}'", iconIndex, rawMessage);
+			return;
+		}
+
 		if (isCombatAchievement) {
 			// client renders CA lines its own way, editing text does nothing here.
 			// current workaround delete node, publish fresh one
