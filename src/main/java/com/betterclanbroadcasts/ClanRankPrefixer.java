@@ -21,7 +21,6 @@ import java.util.Queue;
 @Slf4j
 public class ClanRankPrefixer {
 
-	private static final int INITIAL_APPLY_DELAY_TICKS = 1;
 	private static final int VERIFY_TICKS_AFTER_APPLY = 3;
 	private static final String CA_ID_REGEX = "CA_ID:\\d+\\|";
 
@@ -97,17 +96,26 @@ public class ClanRankPrefixer {
 			return;
 		}
 
-		String newMessage = buildPrefixedMessage(rawMessage, title, iconIndex);
-		pendingEdits.add(new PendingEdit(event.getMessageNode(), newMessage, INITIAL_APPLY_DELAY_TICKS));
+		String iconPrefix = iconPrefixFor(title, iconIndex);
+		PendingEdit edit = new PendingEdit(event.getMessageNode(), rawMessage, iconPrefix, VERIFY_TICKS_AFTER_APPLY);
+		applyEdit(edit);
+		pendingEdits.add(edit);
 	}
 
 	private void replaceCombatAchievementBroadcast(MessageNode originalNode, String rawMessage, ClanTitle title, int iconIndex) {
-		// strip only CA_ID tag, keep everything else (ironman icons)
-		String cleanText = rawMessage.replaceFirst(CA_ID_REGEX, "").trim();
-		String injectedMessage = buildPrefixedMessage(cleanText, title, iconIndex);
+		String iconPrefix = iconPrefixFor(title, iconIndex);
 
-		lastInjectedMessage = injectedMessage;
 		clientThread.invokeLater(() -> {
+			String currentFormatted = originalNode.getRuneLiteFormatMessage();
+			String base = currentFormatted != null && !currentFormatted.isEmpty() ? currentFormatted : rawMessage;
+
+			// strip only CA_ID tag, keep everything else (ironman icons)
+			// and now also any formatting carried over from base above
+			String cleanText = base.replaceFirst(CA_ID_REGEX, "").trim();
+			String injectedMessage = iconPrefix + cleanText;
+
+			lastInjectedMessage = injectedMessage;
+
 			// remove old line, then add new one. order matters, do not swap.
 			ChatLineBuffer buffer = client.getChatLineMap().get(ChatMessageType.CLAN_MESSAGE.getType());
 			if (buffer != null) {
@@ -118,11 +126,11 @@ public class ClanRankPrefixer {
 		});
 	}
 
-	private String buildPrefixedMessage(String message, ClanTitle title, int iconIndex) {
+	private String iconPrefixFor(ClanTitle title, int iconIndex) {
 		// -1 means no icon registered for rank, fall back to plain text bracket
 		return iconIndex >= 0
-				? "<img=" + iconIndex + "> " + message
-				: "[" + title.getName() + "] " + message;
+				? "<img=" + iconIndex + "> "
+				: "[" + title.getName() + "] ";
 	}
 
 	private ClanChannelMember findMatchingMember(ClanChannel clanChannel, String strippedMessage) {
@@ -150,21 +158,13 @@ public class ClanRankPrefixer {
 		for (int i = 0; i < size; i++) {
 			PendingEdit edit = pendingEdits.poll();
 
-			if (!edit.applied) {
-				edit.ticksRemaining--;
-				if (edit.ticksRemaining <= 0) {
-					applyEdit(edit);
-					edit.applied = true;
-					edit.ticksRemaining = VERIFY_TICKS_AFTER_APPLY;
-					pendingEdits.add(edit);
-				} else {
-					pendingEdits.add(edit);
-				}
-				continue;
-			}
-
-			// recheck after apply. non-CA lines don't get reclobbered, but cheap safety net.
-			if (!edit.message.equals(edit.messageNode.getRuneLiteFormatMessage())) {
+			// only re-apply if OUR icon prefix specifically got lost (e.g.
+			// the client reverted the whole edit) - if the prefix is still
+			// there but the rest of the line differs, that's another
+			// plugin having added its own formatting after us, which we
+			// leave alone rather than fighting
+			String current = edit.messageNode.getRuneLiteFormatMessage();
+			if (current == null || !current.startsWith(edit.iconPrefix)) {
 				applyEdit(edit);
 			}
 
@@ -177,21 +177,37 @@ public class ClanRankPrefixer {
 
 	private void applyEdit(PendingEdit edit) {
 		clientThread.invokeLater(() -> {
-			edit.messageNode.setRuneLiteFormatMessage(edit.message);
+			edit.messageNode.setRuneLiteFormatMessage(buildMessage(edit));
 			client.refreshChat();
 		});
 	}
 
-	// one edit waiting for tick delay, then a few more ticks to verify it stuck
+	// builds the message fresh at apply time so it reflects whatever formatting other plugins have added to the node
+	private String buildMessage(PendingEdit edit) {
+		String current = edit.messageNode.getRuneLiteFormatMessage();
+		String body;
+		if (current == null || current.isEmpty()) {
+			body = edit.rawMessage;
+		} else if (current.startsWith(edit.iconPrefix)) {
+			body = current.substring(edit.iconPrefix.length());
+		} else {
+			body = current;
+		}
+		return edit.iconPrefix + body;
+	}
+
+	// an edit thats been applied once, still being watched for a few ticks
+	// in case something reverts it
 	private static class PendingEdit {
 		final MessageNode messageNode;
-		final String message;
+		final String rawMessage;
+		final String iconPrefix;
 		int ticksRemaining;
-		boolean applied = false;
 
-		PendingEdit(MessageNode messageNode, String message, int ticksRemaining) {
+		PendingEdit(MessageNode messageNode, String rawMessage, String iconPrefix, int ticksRemaining) {
 			this.messageNode = messageNode;
-			this.message = message;
+			this.rawMessage = rawMessage;
+			this.iconPrefix = iconPrefix;
 			this.ticksRemaining = ticksRemaining;
 		}
 	}
