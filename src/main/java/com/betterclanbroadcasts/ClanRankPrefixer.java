@@ -1,6 +1,5 @@
 package com.betterclanbroadcasts;
 
-import net.runelite.api.ChatLineBuffer;
 import net.runelite.api.Client;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.MessageNode;
@@ -10,12 +9,16 @@ import net.runelite.api.clan.ClanSettings;
 import net.runelite.api.clan.ClanTitle;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.util.Text;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Queue;
 
 @Slf4j
@@ -24,11 +27,15 @@ public class ClanRankPrefixer {
 	private static final int VERIFY_TICKS_AFTER_APPLY = 3;
 	private static final String CA_ID_REGEX = "CA_ID:\\d+\\|";
 
+	// keeps CA messages in memory to check and refresh icon for 6 hours then stops tracking
+	private static final int CA_ICON_TTL_TICKS = 36000;
+	private static final int CHATBOX_SCROLLAREA_ID = 10616890;
+
 	private final Client client;
 	private final ClientThread clientThread;
 	private final ChatIconManager chatIconManager;
 	private final Queue<PendingEdit> pendingEdits = new ArrayDeque<>();
-	private String lastInjectedMessage = null;
+	private final List<PendingCaIcon> pendingCaIcons = new ArrayList<>();
 
 	public ClanRankPrefixer(Client client, ClientThread clientThread, ChatIconManager chatIconManager) {
 		this.client = client;
@@ -42,11 +49,6 @@ public class ClanRankPrefixer {
 		}
 
 		String rawMessage = event.getMessage();
-
-		if (rawMessage.equals(lastInjectedMessage)) {
-			lastInjectedMessage = null;
-			return;
-		}
 
 		ClanChannel clanChannel = client.getClanChannel();
 		ClanSettings clanSettings = client.getClanSettings();
@@ -83,16 +85,11 @@ public class ClanRankPrefixer {
 
 		int iconIndex = chatIconManager.getIconNumber(title);
 
-		// guard against double-prefixing
-		if (iconIndex >= 0 && rawMessage.trim().matches("^(?:" + CA_ID_REGEX + ")?<img=" + iconIndex + ">\\s.*")) {
-			log.debug("Message already prefixed with our icon ({}), skipping: '{}'", iconIndex, rawMessage);
-			return;
-		}
-
 		if (isCombatAchievement) {
-			// client renders CA lines its own way, editing text does nothing here.
-			// current workaround delete node, publish fresh one
-			replaceCombatAchievementBroadcast(event.getMessageNode(), rawMessage, title, iconIndex);
+			boolean alreadyPending = pendingCaIcons.stream().anyMatch(p -> p.cleanText.equals(strippedMessage));
+			if (!alreadyPending) {
+				pendingCaIcons.add(new PendingCaIcon(strippedMessage, iconIndex, CA_ICON_TTL_TICKS));
+			}
 			return;
 		}
 
@@ -100,30 +97,6 @@ public class ClanRankPrefixer {
 		PendingEdit edit = new PendingEdit(event.getMessageNode(), rawMessage, iconPrefix, VERIFY_TICKS_AFTER_APPLY);
 		applyEdit(edit);
 		pendingEdits.add(edit);
-	}
-
-	private void replaceCombatAchievementBroadcast(MessageNode originalNode, String rawMessage, ClanTitle title, int iconIndex) {
-		String iconPrefix = iconPrefixFor(title, iconIndex);
-
-		clientThread.invokeLater(() -> {
-			String currentFormatted = originalNode.getRuneLiteFormatMessage();
-			String base = currentFormatted != null && !currentFormatted.isEmpty() ? currentFormatted : rawMessage;
-
-			// strip only CA_ID tag, keep everything else (ironman icons)
-			// and now also any formatting carried over from base above
-			String cleanText = base.replaceFirst(CA_ID_REGEX, "").trim();
-			String injectedMessage = iconPrefix + cleanText;
-
-			lastInjectedMessage = injectedMessage;
-
-			// remove old line, then add new one. order matters, do not swap.
-			ChatLineBuffer buffer = client.getChatLineMap().get(ChatMessageType.CLAN_MESSAGE.getType());
-			if (buffer != null) {
-				buffer.removeMessageNode(originalNode);
-			}
-			client.addChatMessage(ChatMessageType.CLAN_MESSAGE, "", injectedMessage, null);
-			client.refreshChat();
-		});
 	}
 
 	private String iconPrefixFor(ClanTitle title, int iconIndex) {
@@ -150,6 +123,15 @@ public class ClanRankPrefixer {
 	}
 
 	public void onGameTick(GameTick event) {
+		Iterator<PendingCaIcon> caIt = pendingCaIcons.iterator();
+		while (caIt.hasNext()) {
+			PendingCaIcon icon = caIt.next();
+			icon.ticksRemaining--;
+			if (icon.ticksRemaining <= 0) {
+				caIt.remove();
+			}
+		}
+
 		if (pendingEdits.isEmpty()) {
 			return;
 		}
@@ -168,6 +150,47 @@ public class ClanRankPrefixer {
 				pendingEdits.add(edit);
 			}
 		}
+	}
+
+	// called every rendered frame (not every tick) for responsiveness only is doing finding/prepending
+	public void processPendingCaIcons() {
+		if (pendingCaIcons.isEmpty()) {
+			return;
+		}
+
+		Widget scrollArea = client.getWidget(CHATBOX_SCROLLAREA_ID);
+		Widget[] children = scrollArea == null ? null : scrollArea.getDynamicChildren();
+		if (children == null) {
+			children = new Widget[0];
+		}
+
+		for (PendingCaIcon icon : pendingCaIcons) {
+			Widget match = findMatchingLine(children, icon.cleanText);
+			if (match == null) {
+				continue;
+			}
+
+			String currentText = match.getText();
+			String iconTag = "<img=" + icon.iconIndex + ">";
+			if (currentText == null || !currentText.contains(iconTag)) {
+				match.setText(iconTag + " " + (currentText == null ? "" : currentText));
+				match.revalidate();
+			}
+		}
+	}
+
+	private Widget findMatchingLine(Widget[] children, String cleanText) {
+		for (Widget child : children) {
+			if (child == null || child.isHidden() || child.getText() == null || child.getText().isEmpty()) {
+				continue;
+			}
+
+			if (Text.removeTags(child.getText()).contains(cleanText)) {
+				return child;
+			}
+		}
+
+		return null;
 	}
 
 	private void applyEdit(PendingEdit edit) {
@@ -203,6 +226,19 @@ public class ClanRankPrefixer {
 			this.messageNode = messageNode;
 			this.rawMessage = rawMessage;
 			this.iconPrefix = iconPrefix;
+			this.ticksRemaining = ticksRemaining;
+		}
+	}
+
+	// a CA broadcast waiting for its icon, matched against widget text each tick
+	private static class PendingCaIcon {
+		final String cleanText;
+		final int iconIndex;
+		int ticksRemaining;
+
+		PendingCaIcon(String cleanText, int iconIndex, int ticksRemaining) {
+			this.cleanText = cleanText;
+			this.iconIndex = iconIndex;
 			this.ticksRemaining = ticksRemaining;
 		}
 	}
