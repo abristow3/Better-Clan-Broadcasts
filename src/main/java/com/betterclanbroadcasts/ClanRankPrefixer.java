@@ -158,11 +158,6 @@ public class ClanRankPrefixer {
 		for (int i = 0; i < size; i++) {
 			PendingEdit edit = pendingEdits.poll();
 
-			// only re-apply if OUR icon prefix specifically got lost (e.g.
-			// the client reverted the whole edit) - if the prefix is still
-			// there but the rest of the line differs, that's another
-			// plugin having added its own formatting after us, which we
-			// leave alone rather than fighting
 			String current = edit.messageNode.getRuneLiteFormatMessage();
 			if (current == null || !current.startsWith(edit.iconPrefix)) {
 				applyEdit(edit);
