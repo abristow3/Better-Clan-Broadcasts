@@ -63,6 +63,7 @@ public class BetterClanBroadcastsPlugin extends Plugin
 
 	private ClanRankPrefixer clanRankPrefixer;
 	private ClanPlayerListSorter clanPlayerListSorter;
+	private ClanCaIconMaintainer clanCaIconMaintainer;
 
 	private static final int SORT_BUTTON_Y = 33;
 	private static final int WORLD_SORT_BUTTON_X = 140;
@@ -83,6 +84,9 @@ public class BetterClanBroadcastsPlugin extends Plugin
 
 		clanRankPrefixer = new ClanRankPrefixer(client, clientThread, chatIconManager);
 		clanPlayerListSorter = new ClanPlayerListSorter(client, configManager);
+
+		clanCaIconMaintainer = new ClanCaIconMaintainer(config, clanRankPrefixer);
+		overlayManager.add(clanCaIconMaintainer);
 
 		worldSortButton = new ClanSortToggleButton(client, clientThread,
 				WORLD_SORT_BUTTON_X, SORT_BUTTON_Y,
@@ -113,8 +117,10 @@ public class BetterClanBroadcastsPlugin extends Plugin
 	protected void shutDown() throws Exception
 	{
 		overlayManager.remove(clanNoteOverlay);
+		overlayManager.remove(clanCaIconMaintainer);
 
 		clanRankPrefixer = null;
+		clanCaIconMaintainer = null;
 
 		clanPlayerListSorter.reset();
 		clanPlayerListSorter = null;

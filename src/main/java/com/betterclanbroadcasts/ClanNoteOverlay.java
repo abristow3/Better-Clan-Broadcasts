@@ -69,11 +69,6 @@ class ClanNoteOverlay extends Overlay
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		if (client.isMenuOpen())
-		{
-			return null;
-		}
-
 		ClanChannel clanChannel = client.getClanChannel();
 		Widget playerList = client.getWidget(InterfaceID.ClansSidepanel.PLAYERLIST);
 		if (clanChannel == null || playerList == null)
@@ -107,6 +102,7 @@ class ClanNoteOverlay extends Overlay
 
 		Point playerListCanvasLocation = playerList.getCanvasLocation();
 		Rectangle playerListBounds = playerList.getBounds();
+		boolean menuOpen = client.isMenuOpen();
 		Point mouse = client.getMouseCanvasPosition();
 
 		for (Map.Entry<Integer, List<Widget>> entry : rowsByIndex.entrySet())
@@ -138,7 +134,7 @@ class ClanNoteOverlay extends Overlay
 				}
 			}
 
-			if (config.showNoteTooltip() && isRowHovered(rowWidgets, mouse))
+			if (!menuOpen && config.showNoteTooltip() && isRowHovered(rowWidgets, mouse))
 			{
 				tooltipManager.add(new Tooltip(note));
 			}
