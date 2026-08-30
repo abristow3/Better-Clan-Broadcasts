@@ -1,4 +1,4 @@
-package com.betterclanbroadcasts;
+package com.betterclanbroadcasts.clan_sorter;
 
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;

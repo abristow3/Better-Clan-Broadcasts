@@ -1,4 +1,4 @@
-package com.betterclanbroadcasts;
+package com.betterclanbroadcasts.clan_notes;
 
 import java.awt.Dimension;
 import java.awt.Graphics2D;
@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
+
+import com.betterclanbroadcasts.BetterClanBroadcastsConfig;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
@@ -26,7 +28,7 @@ import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.Text;
 
 @Slf4j
-class ClanNoteOverlay extends Overlay
+public class ClanNoteOverlay extends Overlay
 {
 	private static final int CLAN_ROW_HEIGHT = 15;
 	private static final int NOTE_ICON_WIDTH = 14;
