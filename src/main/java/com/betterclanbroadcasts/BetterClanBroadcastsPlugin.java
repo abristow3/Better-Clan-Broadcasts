@@ -10,10 +10,12 @@ import com.betterclanbroadcasts.clan_sorter.ClanPlayerListSorter;
 import com.betterclanbroadcasts.clan_sorter.ClanSortToggleButton;
 import com.google.common.base.Strings;
 import com.google.inject.Provides;
+
 import java.awt.Color;
 import java.util.Set;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -98,20 +100,29 @@ public class BetterClanBroadcastsPlugin extends Plugin
     private static final String[] TEST_CA_TIERS = {
             "an easy", "a medium", "a hard", "an elite", "a master", "a grandmaster"
     };
+    // tier unlock broadcasts use Title Case tier names, no article
+    private static final String[] TEST_CA_UNLOCK_TIERS = {
+            "Easy", "Medium", "Hard", "Elite", "Master", "Grandmaster"
+    };
+    // starts right after the 6 staggered task-completion broadcasts finish firing
+    private static final int TEST_CA_UNLOCK_START_DELAY_TICKS =
+            TEST_CA_BROADCAST_DELAY_TICKS + (TEST_CA_TIERS.length * TEST_CA_TIER_STAGGER_TICKS) + TEST_CA_TIER_STAGGER_TICKS;
     private int testBroadcastTicksRemaining = -1;
     private int testCaTierIndex = -1;
     private int testCaTierTicksRemaining = -1;
+    private int testCaUnlockIndex = -1;
+    private int testCaUnlockTicksRemaining = -1;
     private boolean testBroadcastsScheduled = false;
 
     @Subscribe
-    public void onGameStateChanged(GameStateChanged event)
-    {
-        if (event.getGameState() == GameState.LOGGED_IN && !testBroadcastsScheduled)
-        {
+    public void onGameStateChanged(GameStateChanged event) {
+        if (event.getGameState() == GameState.LOGGED_IN && !testBroadcastsScheduled) {
             testBroadcastsScheduled = true;
             testBroadcastTicksRemaining = TEST_BROADCAST_DELAY_TICKS;
             testCaTierIndex = 0;
             testCaTierTicksRemaining = TEST_CA_BROADCAST_DELAY_TICKS;
+            testCaUnlockIndex = 0;
+            testCaUnlockTicksRemaining = TEST_CA_UNLOCK_START_DELAY_TICKS;
         }
     }
     // END TEST ONLY - REMOVE BEFORE SHIPPING
@@ -219,6 +230,17 @@ public class BetterClanBroadcastsPlugin extends Plugin
                                 + " has completed " + article + " combat task: Test Task " + (testCaTierIndex + 1) + ".", null);
                 testCaTierIndex++;
                 testCaTierTicksRemaining = TEST_CA_TIER_STAGGER_TICKS;
+            }
+        }
+        if (testCaUnlockIndex >= 0 && testCaUnlockIndex < TEST_CA_UNLOCK_TIERS.length) {
+            testCaUnlockTicksRemaining--;
+            if (testCaUnlockTicksRemaining == 0) {
+                String tierName = TEST_CA_UNLOCK_TIERS[testCaUnlockIndex];
+                // no CA_ID tag - confirmed real tier-unlock broadcasts dont carry one
+                client.addChatMessage(ChatMessageType.CLAN_MESSAGE, "",
+                        TEST_BROADCAST_MEMBER + " has unlocked the " + tierName + " tier of rewards from Combat Achievements!", null);
+                testCaUnlockIndex++;
+                testCaUnlockTicksRemaining = TEST_CA_TIER_STAGGER_TICKS;
             }
         }
     }

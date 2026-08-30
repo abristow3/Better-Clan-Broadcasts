@@ -86,14 +86,24 @@ public class ClanBroadcastHandler {
         if (isCombatAchievement) {
             // View task/Open task are native, tied to the MessageNode - leave it
             // untouched, prepend the icon onto the widget text instead
-            BroadcastColorizer.CaTier tier = colorizer.detectTier(strippedMessage);
-            Color tierColor = colorizer.colorFor(tier);
+            BroadcastColorizer.CaTier tier = colorizer.detectCaTier(strippedMessage);
+            Color tierColor = colorizer.colorForCa(tier);
             caIconTracker.enqueue(strippedMessage, tierColor, iconIndex);
             return;
         }
 
+        BroadcastColorizer.CaTier unlockTier = colorizer.detectCaTier(strippedMessage);
+        Color bodyColor = colorizer.colorForCa(unlockTier);
+        if (bodyColor == null) {
+            BroadcastColorizer.DiaryTier diaryTier = colorizer.detectDiaryTier(strippedMessage);
+            bodyColor = colorizer.colorForDiary(diaryTier);
+        }
+        if (bodyColor == null && colorizer.isQuestCompletion(strippedMessage)) {
+            bodyColor = colorizer.colorForQuest();
+        }
+
         String iconPrefix = iconPrefixFor(title, iconIndex);
-        PendingEdit edit = new PendingEdit(event.getMessageNode(), rawMessage, iconPrefix, VERIFY_TICKS_AFTER_APPLY);
+        PendingEdit edit = new PendingEdit(event.getMessageNode(), rawMessage, iconPrefix, VERIFY_TICKS_AFTER_APPLY, bodyColor);
         applyEdit(edit);
         pendingEdits.add(edit);
     }
@@ -162,6 +172,9 @@ public class ClanBroadcastHandler {
         } else {
             body = current;
         }
+        if (edit.tierColor != null) {
+            body = BroadcastColorizer.colorize(body, edit.tierColor);
+        }
         return edit.iconPrefix + body;
     }
 
@@ -171,12 +184,14 @@ public class ClanBroadcastHandler {
         final MessageNode messageNode;
         final String rawMessage;
         final String iconPrefix;
+        final Color tierColor;
         int ticksRemaining;
 
-        PendingEdit(MessageNode messageNode, String rawMessage, String iconPrefix, int ticksRemaining) {
+        PendingEdit(MessageNode messageNode, String rawMessage, String iconPrefix, int ticksRemaining, Color tierColor) {
             this.messageNode = messageNode;
             this.rawMessage = rawMessage;
             this.iconPrefix = iconPrefix;
+            this.tierColor = tierColor;
             this.ticksRemaining = ticksRemaining;
         }
     }
